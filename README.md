@@ -96,7 +96,7 @@ Each file is a standalone, deeply sourced markdown document with inline citation
 
 ## License
 
-Apache 2.0 — see [LICENSE](LICENSE).
+MIT — see [LICENSE](LICENSE).
 
 ## Author
 
