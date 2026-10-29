@@ -8,11 +8,12 @@ A Claude Code skill that decomposes any research question into parallel agent wo
 
 Type `/research [any question]` and the skill will:
 
-1. **Decompose** your question into 2-4 non-overlapping research workstreams
-2. **Present a plan** for your approval before doing anything
-3. **Launch parallel agents** — each writes to its own markdown file in real-time
-4. **Monitor progress** — checks in at escalating intervals, kills stuck agents, relaunches automatically
-5. **Synthesize** — a final agent reads all research outputs and produces a unified document with cross-cutting insights, contradictions, and confidence assessments
+1. **Scan social signal** (optional) — if the [last30days](https://github.com/mvanhorn/last30days-skill) skill is installed, pulls the last 30 days of Reddit, X, YouTube, HN and Polymarket chatter so agents build on it instead of re-researching it
+2. **Decompose** your question into 2-4 non-overlapping research workstreams
+3. **Present a plan** for your approval before doing anything
+4. **Launch parallel agents** — each writes to its own markdown file in real-time
+5. **Monitor progress** — checks in at escalating intervals, kills stuck agents, relaunches automatically
+6. **Synthesize** — a final agent reads all research outputs and produces a unified document with cross-cutting insights, contradictions, and confidence assessments
 
 ## Example
 
@@ -60,7 +61,7 @@ The skill uses Claude Code's built-in Task tool to launch multiple `general-purp
 - Works through sections **in order**, citing every claim with inline source URLs
 - Marks its file `Status: COMPLETE` when done
 
-The orchestrator monitors all agents at escalating intervals (30s, 2min, 5min, then every 5min). If an agent gets stuck (line count unchanged between check-ins), it's automatically killed and relaunched with any data it already found pre-loaded.
+The orchestrator monitors all agents at escalating intervals (30s, 2min, 5min, then every 5min). If an agent gets stuck (byte count unchanged between check-ins), it's automatically killed and relaunched with any data it already found pre-loaded.
 
 After all research agents complete, a synthesis agent reads every output file and produces:
 - **Executive summary** (3-5 bullets)
@@ -73,7 +74,7 @@ After all research agents complete, a synthesis agent reads every output file an
 
 - **Write-after-every-search protocol** — Agents that research without writing get stuck in loops. The strict alternating pattern (search → write → search → write) prevents this entirely.
 - **Stuck agent recovery** — Rather than waiting for agents to self-correct (they won't), the orchestrator kills and relaunches with pre-loaded data. No wasted time.
-- **Skeleton files first** — Creating output files with section headers before launching agents gives them structure and makes progress monitoring trivial (just check line counts).
+- **Skeleton files first** — Creating output files with section headers before launching agents gives them structure and makes progress monitoring trivial (just check byte counts — not lines, which freeze when agents write wide tables).
 - **User approval before launch** — The plan is always shown first. No wasted compute on the wrong decomposition.
 
 ## Output Structure
@@ -92,7 +93,8 @@ Each file is a standalone, deeply sourced markdown document with inline citation
 ## Requirements
 
 - [Claude Code](https://claude.com/claude-code) (CLI)
-- No API keys or external dependencies — uses Claude Code's built-in tools
+- No API keys required — uses Claude Code's built-in tools
+- Optional: the last30days skill for the social signal scan (skipped silently if absent)
 
 ## License
 

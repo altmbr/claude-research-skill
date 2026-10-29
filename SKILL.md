@@ -4,6 +4,52 @@ Decompose a research question into parallel agent workstreams, launch them, moni
 
 ---
 
+## Phase 0.5: Social Signal Scan (Real-Time Pulse)
+
+Before planning agents, run a quick social signal scan to see what people are **actually saying right now** about the topic. This informs agent scoping and prevents re-researching ground already covered.
+
+**Run the last30days script (FOREGROUND, 5-minute timeout):**
+
+```bash
+# Find last30days skill root
+for dir in \
+  "${CLAUDE_PLUGIN_ROOT:-}" \
+  "$HOME/.claude/skills/last30days" \
+  "$HOME/.agents/skills/last30days" \
+  "$HOME/.codex/skills/last30days"; do
+  [ -n "$dir" ] && [ -f "$dir/scripts/last30days.py" ] && SKILL_ROOT="$dir" && break
+done
+
+if [ -n "${SKILL_ROOT:-}" ]; then
+  export PATH="$HOME/Library/Python/3.9/bin:$PATH"
+  python3 "${SKILL_ROOT}/scripts/last30days.py" "{RESEARCH_TOPIC}" --emit=compact --agent
+fi
+```
+
+**If the script is available and returns results:**
+
+1. Save the raw output to `research/[topic]/social_signal_scan.md`
+2. Note the top signals: highest-engagement Reddit threads, most-liked X posts, relevant Polymarket odds
+3. Use these to **inform agent scoping** in Phase 1:
+   - If Reddit/X surface a subtopic getting heavy discussion, ensure an agent covers it
+   - If Polymarket has relevant odds, feed them into risk/scenario agents
+   - If YouTube has relevant conference talks or demos, note URLs for agents
+4. Provide the file path to agents as pre-loaded context:
+   ```
+   "Pre-gathered social signal data is available at: [absolute path to social_signal_scan.md]
+   Read this file FIRST before searching. It contains recent Reddit threads, X posts,
+   YouTube videos, and Polymarket data with engagement metrics. Build on this — don't re-research it."
+   ```
+
+**If the script is NOT available** (missing skill or no API keys), skip this phase silently and proceed to Phase 1. Social data is supplementary, not required.
+
+**When to skip this phase:**
+- Historical research (events >30 days old)
+- Highly technical/academic topics where social signal adds little value
+- User explicitly says to skip it
+
+---
+
 ## Phase 1: Plan the Research
 
 When the user asks to research something:
@@ -60,10 +106,10 @@ Once the user approves the plan:
 
 ## CRITICAL INSTRUCTIONS FOR AGENT
 
-> **YOU WILL BE STOPPED AND RELAUNCHED IF YOU VIOLATE THIS PROTOCOL.**
+> ⚠️ **YOU WILL BE STOPPED AND RELAUNCHED IF YOU VIOLATE THIS PROTOCOL.** ⚠️
 >
-> The ONLY acceptable pattern is: **Search -> Edit -> Search -> Edit -> Search -> Edit.**
-> NEVER: Search -> Search. NO EXCEPTIONS. NOT EVEN ONCE.
+> The ONLY acceptable pattern is: **Search → Edit → Search → Edit → Search → Edit.**
+> NEVER: Search → Search. NO EXCEPTIONS. NOT EVEN ONCE.
 >
 > After EVERY search or fetch, IMMEDIATELY Edit this file with what you learned.
 > If you do two searches in a row without an Edit to this file, you are VIOLATING THE PROTOCOL and will be killed.
@@ -78,7 +124,7 @@ Once the user approves the plan:
 > If a web fetch returns a 403 error, WRITE WHAT YOU HAVE before trying another URL.
 >
 > Every number needs a source. Every source needs a clickable URL inline.
-> Do NOT collect sources at the end -- put them inline with the facts.
+> Do NOT collect sources at the end — put them inline with the facts.
 >
 > When you are DONE with all sections, change "Status: IN PROGRESS" to "Status: COMPLETE" at the top.
 
@@ -105,18 +151,18 @@ Launch ALL research agents in parallel using the Task tool with `run_in_backgrou
 
 Each agent prompt MUST include:
 
-1. **The research question and their specific scope** -- be precise about boundaries
-2. **The exact file path they must write to** -- absolute path
-3. **The section list they must complete** -- numbered, in order
-4. **The critical write protocol** -- copy verbatim:
+1. **The research question and their specific scope** — be precise about boundaries
+2. **The exact file path they must write to** — absolute path
+3. **The section list they must complete** — numbered, in order
+4. **The critical write protocol** — copy verbatim:
 
 ```
-CRITICAL WRITE PROTOCOL -- READ THIS BEFORE DOING ANYTHING:
+CRITICAL WRITE PROTOCOL — READ THIS BEFORE DOING ANYTHING:
 
-YOU WILL BE STOPPED AND RELAUNCHED IF YOU VIOLATE THIS PROTOCOL.
+⚠️ YOU WILL BE STOPPED AND RELAUNCHED IF YOU VIOLATE THIS PROTOCOL. ⚠️
 
-The ONLY acceptable pattern is: Search -> Edit -> Search -> Edit -> Search -> Edit.
-NEVER: Search -> Search. NO EXCEPTIONS. NOT EVEN ONCE.
+The ONLY acceptable pattern is: Search → Edit → Search → Edit → Search → Edit.
+NEVER: Search → Search. NO EXCEPTIONS. NOT EVEN ONCE.
 
 You MUST Edit your output file after EVERY SINGLE search or web fetch.
 If you do two searches in a row without an Edit to your file, you are VIOLATING THE PROTOCOL and will be killed.
@@ -137,7 +183,7 @@ Do NOT put sources at the bottom. Inline only.
 When ALL sections are complete, change the file's Status line from "IN PROGRESS" to "COMPLETE".
 ```
 
-5. **Any relevant context files they should read first** -- provide absolute paths
+5. **Any relevant context files they should read first** — provide absolute paths. **If a social signal scan was run in Phase 0.5, ALWAYS include the social_signal_scan.md file here** so agents can build on existing Reddit/X/YouTube/HN/Polymarket data instead of re-researching it.
 6. **Use `subagent_type: "general-purpose"`** for all research agents
 
 **IMPORTANT:** Use `run_in_background: true` for all research agents so they run in parallel.
@@ -153,22 +199,22 @@ Use escalating check-in intervals:
 ### Check-in 1: ~30 seconds after launch
 - Read each agent's output file to verify they've started writing
 - Report to user: which agents have started writing, which haven't
-- If any agent has an empty file (no content beyond the skeleton), flag it -- the agent may be stuck in a research loop
+- If any agent has an empty file (no content beyond the skeleton), flag it — the agent may be stuck in a research loop
 
 ### Check-in 2: ~2 minutes after launch
 - Read each agent's output file
-- Report: approximate progress (which sections have content, rough line counts)
+- Report: approximate progress (which sections have content, byte counts)
 - Flag any agent that hasn't progressed since last check
 
 ### Check-in 3: ~5 minutes after launch
 - Read each agent's output file
 - Report: which agents are complete (Status: COMPLETE), which are still working
-- **STUCK AGENT RULE:** If an agent's line count has NOT increased between two consecutive check-ins, it is stuck. Do NOT wait -- stop it immediately with TaskStop and relaunch (see Stuck Agent Recovery below).
+- **STUCK AGENT RULE:** If an agent's **byte count** has NOT increased between two consecutive check-ins, it is stuck. Measure bytes (`wc -c`), never lines — agents writing wide markdown tables add one very long line per finding, so line counts can sit frozen while the file grows. Do NOT wait — stop it immediately with TaskStop and relaunch (see Stuck Agent Recovery below).
 
 ### Subsequent check-ins: Every 5 minutes
 - Continue until all agents show Status: COMPLETE or user intervenes
 
-**How to check:** Use `wc -l` via Bash on all agent output files for a quick line count comparison. Then Read specific files only if you need to see what sections are done.
+**How to check:** Use `wc -c` via Bash on all agent output files for a quick byte-count comparison. Then Read specific files only if you need to see what sections are done.
 
 **How to report:** Keep it concise:
 ```
@@ -182,7 +228,7 @@ Agent check-in [#N]:
 
 Agents get stuck when they hit 403 errors or fall into research loops (searching repeatedly without writing). When this happens:
 
-1. **Stop the agent** immediately with TaskStop. Do not wait for it to self-correct -- it won't.
+1. **Stop the agent** immediately with TaskStop. Do not wait for it to self-correct — it won't.
 2. **Read the output file** to see what sections are already complete.
 3. **Check the agent's process output** (tail the output_file from TaskOutput) to extract any useful data the agent found in search results but never wrote to the file.
 4. **Relaunch with a new agent** that:
@@ -219,10 +265,10 @@ Once ALL research agents are complete (or user decides to proceed with what's av
 
 1. **Never launch agents without user approval of the plan.**
 2. **Every agent gets the critical write protocol verbatim.** This is non-negotiable.
-3. **Monitor proactively.** Don't wait for the user to ask -- check in on schedule.
-4. **Kill stuck agents immediately.** If an agent's line count hasn't changed between two consecutive check-ins, stop it with TaskStop and relaunch. Agents do NOT self-correct -- waiting is wasting time. See "Stuck Agent Recovery" in Phase 4.
+3. **Monitor proactively.** Don't wait for the user to ask — check in on schedule.
+4. **Kill stuck agents immediately.** If an agent's byte count hasn't changed between two consecutive check-ins, stop it with TaskStop and relaunch. Agents do NOT self-correct — waiting is wasting time. See "Stuck Agent Recovery" in Phase 4.
 5. **Keep check-in reports concise.** The user wants progress updates, not prose.
-6. **Agents cannot run Bash.** They only have access to: WebSearch, WebFetch, Read, Write, Edit, Glob, Grep. Plan accordingly -- if research requires downloading/parsing PDFs, do that in the main session BEFORE launching agents and provide parsed file paths.
+6. **Agents cannot run Bash.** They only have access to: WebSearch, WebFetch, Read, Write, Edit, Glob, Grep. Plan accordingly — if research requires downloading/parsing PDFs, do that in the main session BEFORE launching agents and provide parsed file paths.
 7. **Source integrity applies to all agents.** Every number needs an inline URL. No orphaned facts.
 8. **403 errors cause research loops.** Agents that hit paywalled/blocked sites often spiral into repeated fetch attempts without writing. The write protocol explicitly addresses this: "Write what you have, THEN try another URL." If an agent is hitting 403s repeatedly, it's likely about to get stuck.
 9. **Pre-load data on relaunch.** When relaunching a stuck agent, always extract useful data from its search results and include it in the new agent's prompt. This prevents re-researching the same ground and gets the agent writing immediately.
